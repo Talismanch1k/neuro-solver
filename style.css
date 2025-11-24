@@ -1,0 +1,175 @@
+:root {
+    --bg-color: #181818; 
+    --text-main: #e0e0e0;
+    --text-muted: #777777;
+    --accent-color: #00e5ff;
+    
+    --shadow-light: -5px -5px 10px rgba(255, 255, 255, 0.04);
+    --shadow-dark: 5px 5px 10px rgba(0, 0, 0, 0.6);
+    
+    --inset-light: inset -5px -5px 10px rgba(255, 255, 255, 0.04);
+    --inset-dark: inset 5px 5px 10px rgba(0, 0, 0, 0.6);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    user-select: none;
+}
+
+.container {
+    width: 90%;
+    height: 95%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 15px;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 5px;
+    flex-shrink: 0; 
+}
+
+h1 {
+    font-weight: 300;
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    color: var(--text-main);
+    text-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--accent-color);
+    animation: pulse 3s infinite;
+}
+
+.neu-inset {
+    background-color: var(--bg-color);
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 15px;
+    color: var(--text-main);
+    box-shadow: var(--inset-dark), var(--inset-light);
+    outline: none;
+    transition: all 0.3s ease;
+    scrollbar-width: none; 
+    -ms-overflow-style: none;
+}
+
+textarea.neu-inset {
+    resize: none;
+    height: 150px;
+    font-size: 1rem;
+    user-select: text;
+    flex-shrink: 0; 
+}
+
+/* Стили для заблокированного поля ввода */
+textarea:disabled {
+    opacity: 0.5; /* Делаем текст тусклее */
+    cursor: not-allowed;
+    background-color: #141414; /* Чуть темнее фон */
+}
+
+textarea::placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.neu-inset:focus {
+    box-shadow: inset 2px 2px 5px rgba(0,0,0,0.8), 
+                inset -2px -2px 5px rgba(255,255,255,0.05);
+    border: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+.neu-btn {
+    background-color: var(--bg-color);
+    border: none;
+    border-radius: 50px;
+    height: 55px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    cursor: pointer;
+    box-shadow: var(--shadow-dark), var(--shadow-light);
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    letter-spacing: 2px;
+    flex-shrink: 0; 
+}
+
+.neu-btn:hover:not(:disabled) {
+    color: #fff;
+    text-shadow: 0 0 15px var(--accent-color);
+}
+
+/* Состояние нажатия или процесса */
+.neu-btn:active, .neu-btn.processing {
+    box-shadow: var(--inset-dark), var(--inset-light);
+    color: var(--text-muted);
+    text-shadow: none;
+}
+
+/* Явный стиль для заблокированной кнопки */
+.neu-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5; /* Кнопка становится полупрозрачной */
+    box-shadow: none; /* Убираем тени, чтобы она казалась плоской/неактивной */
+    background-color: #141414;
+}
+
+.output-wrapper {
+    flex-grow: 1; 
+    min-height: 0; 
+    position: relative;
+    overflow: hidden; 
+    padding: 0;
+}
+
+pre {
+    width: 100%;
+    height: 100%;
+    padding: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--accent-color);
+    overflow-y: auto; 
+    user-select: text;
+    scrollbar-width: none; 
+    -ms-overflow-style: none;
+}
+
+pre::-webkit-scrollbar {
+    display: none;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; box-shadow: 0 0 15px var(--accent-color); }
+    100% { opacity: 0.4; }
+}
