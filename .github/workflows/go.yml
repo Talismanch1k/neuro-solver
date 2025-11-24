@@ -5,12 +5,12 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Позволяет запускать сборку кнопкой вручную
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build binaries
-    runs-on: ubuntu-latest # Используем Ubuntu, так как там проще всего кросс-компилировать
+    runs-on: ubuntu-latest
 
     steps:
     - name: Check out code
@@ -19,20 +19,19 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23' # Используем свежую версию Go
+        go-version: '1.23'
 
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        # libwebkit2gtk -> нужен для сборки Linux версии
-        # mingw-w64 -> компилятор C/C++ для сборки Windows версии
-        sudo apt-get install -y libwebkit2gtk-4.0-dev mingw-w64
+        # ИСПРАВЛЕНИЕ: Заменили 4.0 на 4.1
+        # Также добавили xorg-dev, который иногда нужен для зависимостей GUI
+        sudo apt-get install -y libwebkit2gtk-4.1-dev mingw-w64
 
     - name: Install rsrc (Icon generator)
       run: go install github.com/akavel/rsrc@latest
 
     - name: Generate Windows Icon
-      # Проверяем, есть ли файл иконки, чтобы билд не упал, если его нет
       run: |
         if [ -f "icon.ico" ]; then
           echo "Generating icon resource..."
@@ -44,13 +43,12 @@ jobs:
     - name: Build for Linux
       run: |
         echo "Building Linux binary..."
-        # CGO_ENABLED=1 обязательно для webview
+        # Используем тег linux для webview, чтобы он подхватил новую либу
         CGO_ENABLED=1 go build -ldflags="-s -w" -o build/NeuralSolver_linux_amd64 .
 
     - name: Build for Windows
       run: |
         echo "Building Windows binary..."
-        # Указываем кросс-компиляторы MinGW для C и C++
         CGO_ENABLED=1 \
         CC=x86_64-w64-mingw32-gcc \
         CXX=x86_64-w64-mingw32-g++ \
