@@ -1,10 +1,6 @@
-name: Build NeuralSolver
+name: Manual Build NeuralSolver
 
 on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -24,9 +20,12 @@ jobs:
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        # ИСПРАВЛЕНИЕ: Заменили 4.0 на 4.1
-        # Также добавили xorg-dev, который иногда нужен для зависимостей GUI
+        # 1. Устанавливаем версию 4.1 (которая есть в репозитории)
         sudo apt-get install -y libwebkit2gtk-4.1-dev mingw-w64
+
+        # 2. ПРИМЕНЯЕМ ХАК: Создаем симлинк, чтобы pkg-config находил 4.1, когда просят 4.0
+        # Библиотека webview жестко требует 4.0, поэтому мы ее "обманываем"
+        sudo ln -s /usr/lib/x86_64-linux-gnu/pkgconfig/webkit2gtk-4.1.pc /usr/lib/x86_64-linux-gnu/pkgconfig/webkit2gtk-4.0.pc
 
     - name: Install rsrc (Icon generator)
       run: go install github.com/akavel/rsrc@latest
@@ -43,7 +42,7 @@ jobs:
     - name: Build for Linux
       run: |
         echo "Building Linux binary..."
-        # Используем тег linux для webview, чтобы он подхватил новую либу
+        # Теперь сборка пройдет, так как pkg-config найдет наш фейковый 4.0
         CGO_ENABLED=1 go build -ldflags="-s -w" -o build/NeuralSolver_linux_amd64 .
 
     - name: Build for Windows
