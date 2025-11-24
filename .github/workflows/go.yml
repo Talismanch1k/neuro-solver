@@ -2,58 +2,65 @@ name: Build NeuralSolver
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
   pull_request:
-  release:
-    types: [created]
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Позволяет запускать сборку кнопкой вручную
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            output: NeuralSolver-linux-amd64
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            output: NeuralSolver-windows-amd64.exe
+    name: Build binaries
+    runs-on: ubuntu-latest # Используем Ubuntu, так как там проще всего кросс-компилировать
 
-    runs-on: ${{ matrix.os }}
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-      
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
-      
-      - name: Build
-        env:
-          CGO_ENABLED: 1
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          go build -ldflags="-s -w -H windowsgui" -o ${{ matrix.output }} .
-      
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ matrix.output }}
-          path: ${{ matrix.output }}
-      
-      - name: Upload to Release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ matrix.output }}
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23' # Используем свежую версию Go
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        # libwebkit2gtk -> нужен для сборки Linux версии
+        # mingw-w64 -> компилятор C/C++ для сборки Windows версии
+        sudo apt-get install -y libwebkit2gtk-4.0-dev mingw-w64
+
+    - name: Install rsrc (Icon generator)
+      run: go install github.com/akavel/rsrc@latest
+
+    - name: Generate Windows Icon
+      # Проверяем, есть ли файл иконки, чтобы билд не упал, если его нет
+      run: |
+        if [ -f "icon.ico" ]; then
+          echo "Generating icon resource..."
+          $(go env GOPATH)/bin/rsrc -ico icon.ico -o rsrc.syso
+        else
+          echo "Warning: icon.ico not found, skipping icon generation."
+        fi
+
+    - name: Build for Linux
+      run: |
+        echo "Building Linux binary..."
+        # CGO_ENABLED=1 обязательно для webview
+        CGO_ENABLED=1 go build -ldflags="-s -w" -o build/NeuralSolver_linux_amd64 .
+
+    - name: Build for Windows
+      run: |
+        echo "Building Windows binary..."
+        # Указываем кросс-компиляторы MinGW для C и C++
+        CGO_ENABLED=1 \
+        CC=x86_64-w64-mingw32-gcc \
+        CXX=x86_64-w64-mingw32-g++ \
+        GOOS=windows \
+        GOARCH=amd64 \
+        go build -ldflags="-s -w -H windowsgui" -o build/NeuralSolver_windows_amd64.exe .
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: NeuralSolver-Binaries
+        path: build/*
+        if-no-files-found: error
