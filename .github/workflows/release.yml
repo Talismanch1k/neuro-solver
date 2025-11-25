@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
 
   build-windows:
@@ -26,7 +29,7 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: |
-          go build -ldflags "-s -w" -v -o app-windows.exe -ldflags "-H=windowsgui" .
+          go build -ldflags "-H windowsgui -s -w" -v -o app-windows.exe .
       
       - name: Output path
         id: output-path
