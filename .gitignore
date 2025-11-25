@@ -1,0 +1,56 @@
+# Бинарные файлы
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Папка сборки
+build/
+dist/
+
+# Go workspace файлы
+go.work
+go.work.sum
+
+# Зависимости (vendor)
+/vendor/
+
+# IDE файлы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS файлы
+.DS_Store
+Thumbs.db
+
+# Временные файлы
+*.log
+*.tmp
+
+# Windows resource файлы (если генерируются)
+rsrc.syso
+*.syso
+
+# Тестовые покрытия
+*.coverage
+coverage.out
+coverage.html
+
+# Временные файлы сборки
+*.o
+*.a
+*.lib
+
+# Дебаг файлы
+__debug_bin
+debug
+
+# Env файлы с секретами
+.env
+.env.local
