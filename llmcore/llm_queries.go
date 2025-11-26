@@ -12,8 +12,8 @@ import (
 	"github.com/openai/openai-go/option"
 )
 
-const base_url string = "https://api.cerebras.ai/v1"
-const model string = "gpt-oss-120b"
+const base_url string = "https://api.mistral.ai/v1"
+const model string = "mistral-small-2506"
 
 var embeddedAPIKey string = ""
 
