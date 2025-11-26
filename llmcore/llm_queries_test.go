@@ -90,7 +90,10 @@ func TestLLMQuery_Connection(t *testing.T) {
 	systemPrompt := "You are a helpful assistant. Respond with exactly one word."
 	userPrompt := "Say 'pong'"
 
-	result := LLMQuery(systemPrompt, userPrompt, 0.1)
+	result, err := LLMQuery(systemPrompt, userPrompt, 0.1)
+	if err != nil {
+		t.Fatalf("LLM query failed: %v", err)
+	}
 
 	if result == "" {
 		t.Fatal("expected non-empty response from LLM API")
