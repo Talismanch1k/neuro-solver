@@ -28,9 +28,8 @@ jobs:
       - name: Build Windows binary (GUI mode)
         env:
           CGO_ENABLED: 1
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          go build -ldflags "-H windowsgui -s -w" -v -o app-windows.exe .
+          go build -ldflags "-H windowsgui -s -w -X 'neurosolver/llmcore.embeddedAPIKey=${{ secrets.OPENAI_API_KEY }}'" -v -o app-windows.exe .
       
       - name: Output path
         id: output-path
@@ -67,9 +66,8 @@ jobs:
       - name: Build Linux binary
         env:
           CGO_ENABLED: 1
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          go build -ldflags "-s -w" -v -o app-linux .
+          go build -ldflags "-s -w -X 'neurosolver/llmcore.embeddedAPIKey=${{ secrets.OPENAI_API_KEY }}'" -v -o app-linux .
 
       - name: Output path
         id: output-path

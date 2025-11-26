@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -14,8 +15,18 @@ const base_url string = "https://openrouter.ai/api/v1"
 // const model string = "tngtech/deepseek-r1t-chimera:free"
 const model string = "openai/gpt-oss-20b:free"
 
+var embeddedAPIKey string = ""
+
+func getAPIKey() string {
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+		return key
+	}
+	return embeddedAPIKey
+}
+
 func LLMQuery(systemPrompt, userPrompt string, temperature float64) string {
-	client := openai.NewClient(option.WithBaseURL(base_url))
+	apiKey := getAPIKey()
+	client := openai.NewClient(option.WithBaseURL(base_url), option.WithAPIKey(apiKey))
 
 	resp, err := client.Chat.Completions.New(context.TODO(),
 		openai.ChatCompletionNewParams{
