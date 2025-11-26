@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Solver</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js"></script>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Neural Solver</h1>
+            <div class="status-dot"></div>
+        </div>
+
+        <!-- Input Section -->
+        <textarea id="input" class="neu-inset" placeholder="Введите ваш запрос..."></textarea>
+
+        <!-- Options -->
+        <label class="checkbox-wrapper">
+            <input type="checkbox" id="showLog">
+            <span class="checkmark"></span>
+            <span class="checkbox-label">Показать лог резолюций</span>
+        </label>
+
+        <!-- Controls -->
+        <button id="solveBtn" class="neu-btn" onclick="processRequest()">
+            SOLVE
+        </button>
+
+        <!-- Output Section -->
+        <div class="output-wrapper neu-inset">
+            <pre id="output"></pre>
+        </div>
+    </div>
+
+</body>
+
+</html>

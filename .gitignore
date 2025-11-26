@@ -33,10 +33,6 @@ Thumbs.db
 *.log
 *.tmp
 
-# Windows resource файлы (если генерируются)
-rsrc.syso
-*.syso
-
 # Тестовые покрытия
 *.coverage
 coverage.out
