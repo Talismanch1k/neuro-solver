@@ -32,7 +32,7 @@ Neural Solver позволяет решать логические задачи 
 
 Скачайте последний релиз для вашей платформы:
 - [Windows (app-windows.exe)](https://github.com/Talismanch1k/neuro-solver/releases/latest)
-- [Linux (app-linux)](https://github.com/Talismanch1k/neuro-solver/releases/latest)
+- [Linux (app-linux)](https://github.com/Talismanch1k/neuro-solver/releases/latest) + установлена `libwebkit2gtk-4.1-dev`
 
 ### Сборка из исходников
 
