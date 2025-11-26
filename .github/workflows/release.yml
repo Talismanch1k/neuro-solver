@@ -28,6 +28,7 @@ jobs:
       - name: Build Windows binary (GUI mode)
         env:
           CGO_ENABLED: 1
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           go build -ldflags "-H windowsgui -s -w" -v -o app-windows.exe .
       
@@ -66,6 +67,7 @@ jobs:
       - name: Build Linux binary
         env:
           CGO_ENABLED: 1
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           go build -ldflags "-s -w" -v -o app-linux .
 
