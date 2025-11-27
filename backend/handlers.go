@@ -74,7 +74,7 @@ func SolveProblemHandler(w webview.WebView) func(text string, showLog bool, call
 			fmt.Println("SHORT LOG:", shortLog)
 
 			// Шаг 3: Генерация объяснения через LLM
-			time.Sleep(3 * time.Second) // --- IGNORE ---
+			time.Sleep(5 * time.Second) // --- IGNORE ---
 			explanation, err := llmcore.LLMQuery(llmcore.ExplanationPrompt, shortLog, 1)
 			fmt.Println("EXPLANATION:", explanation)
 			if err != nil {
