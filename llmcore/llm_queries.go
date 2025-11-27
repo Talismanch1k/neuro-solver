@@ -13,7 +13,8 @@ import (
 )
 
 const base_url string = "https://api.mistral.ai/v1"
-const model string = "mistral-small-2506"
+
+const model string = "mistral-medium-latest"
 
 var embeddedAPIKey string = ""
 
