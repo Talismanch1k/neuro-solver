@@ -640,7 +640,7 @@ func (e *ResolutionEngine) Prove() ProofResult {
 			return ProofResult{
 				Success:  false,
 				FullLog:  strings.Join(logLines, "\n"),
-				ShortLog: "Доказательство не найдено — краткий лог недоступен.",
+				ShortLog: strings.Join(logLines, "\n"),
 			}
 		}
 	}

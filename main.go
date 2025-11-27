@@ -15,8 +15,6 @@ import (
 //go:embed assets/*
 var assets embed.FS
 
-// Кэш для хранения последнего результата (без мьютекса - однопользовательское приложение)
-
 func main() {
 	// Disable WebKit compositing mode on Linux to avoid rendering issues
 	if runtime.GOOS == "linux" {
@@ -31,10 +29,10 @@ func main() {
 	}
 	defer ln.Close()
 
-	// launch server in background
+	// Запуск статического файлового сервера
 	go http.Serve(ln, http.FileServer(http.FS(assets)))
 
-	// launch window
+	// Запуск окна
 	w := webview.New(true)
 	defer w.Destroy()
 	w.SetTitle("Neural Solver")
