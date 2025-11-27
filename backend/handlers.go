@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"neurosolver/llmcore"
 	"neurosolver/resolution"
+	"time"
 
 	webview "github.com/webview/webview_go"
 )
@@ -73,6 +74,7 @@ func SolveProblemHandler(w webview.WebView) func(text string, showLog bool, call
 			fmt.Println("SHORT LOG:", shortLog)
 
 			// Шаг 3: Генерация объяснения через LLM
+			time.Sleep(3 * time.Second) // --- IGNORE ---
 			explanation, err := llmcore.LLMQuery(llmcore.ExplanationPrompt, shortLog, 1)
 			fmt.Println("EXPLANATION:", explanation)
 			if err != nil {
