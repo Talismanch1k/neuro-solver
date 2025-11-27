@@ -1,7 +1,5 @@
 package resolution
 
-// (Resolution Engine) — алгоритм автоматического доказательства теорем.
-
 import (
 	"fmt"
 	"sort"
@@ -12,43 +10,76 @@ import (
 const max_iterations = 500000
 
 // ==========================================
-// 1. Базовые структуры (Термы, Литералы)
+// 1. Базовые структуры (Термы)
 // ==========================================
 
-// Term — интерфейс для термов: переменных и констант
+// Term — интерфейс. Обязателен метод ContainsVar для проверки зацикливания.
 type Term interface {
 	Name() string
 	IsVariable() bool
 	String() string
+	ContainsVar(varName string) bool
 }
 
-// Variable — переменная (одна строчная буква)
+// Variable — переменная (x, y, z...)
 type Variable struct {
 	name string
 }
 
-func NewVariable(name string) *Variable {
-	return &Variable{name: name}
+func NewVariable(name string) *Variable { return &Variable{name: name} }
+func (v *Variable) Name() string        { return v.name }
+func (v *Variable) IsVariable() bool    { return true }
+func (v *Variable) String() string      { return v.name }
+func (v *Variable) ContainsVar(name string) bool {
+	return v.name == name
 }
 
-func (v *Variable) Name() string     { return v.name }
-func (v *Variable) IsVariable() bool { return true }
-func (v *Variable) String() string   { return v.name }
-
-// Constant — константа (всё остальное)
+// Constant — константа (a, Bob, 1).
 type Constant struct {
 	name string
 }
 
-func NewConstant(name string) *Constant {
-	return &Constant{name: name}
+func NewConstant(name string) *Constant { return &Constant{name: name} }
+func (c *Constant) Name() string        { return c.name }
+func (c *Constant) IsVariable() bool    { return false }
+func (c *Constant) String() string      { return c.name }
+func (c *Constant) ContainsVar(name string) bool {
+	return false
 }
 
-func (c *Constant) Name() string     { return c.name }
-func (c *Constant) IsVariable() bool { return false }
-func (c *Constant) String() string   { return c.name }
+// Function — функциональный терм: f(x), Отец(x)
+type Function struct {
+	name string
+	args []Term
+}
 
-// Literal — литерал (выражение над термами, может быть отрицательным)
+func NewFunction(name string, args []Term) *Function {
+	return &Function{name: name, args: args}
+}
+func (f *Function) Name() string     { return f.name }
+func (f *Function) IsVariable() bool { return false }
+func (f *Function) String() string {
+	parts := make([]string, len(f.args))
+	for i, arg := range f.args {
+		parts[i] = arg.String()
+	}
+	return fmt.Sprintf("%s(%s)", f.name, strings.Join(parts, ", "))
+}
+
+// Проверка вхождения: рекурсивно ищем переменную в аргументах функции
+func (f *Function) ContainsVar(name string) bool {
+	for _, arg := range f.args {
+		if arg.ContainsVar(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// ==========================================
+// 2. Литерал и Клауза
+// ==========================================
+
 type Literal struct {
 	Predicate string
 	Args      []Term
@@ -56,11 +87,7 @@ type Literal struct {
 }
 
 func NewLiteral(predicate string, args []Term, negated bool) *Literal {
-	return &Literal{
-		Predicate: predicate,
-		Args:      args,
-		Negated:   negated,
-	}
+	return &Literal{Predicate: predicate, Args: args, Negated: negated}
 }
 
 func (l *Literal) String() string {
@@ -68,19 +95,18 @@ func (l *Literal) String() string {
 	if l.Negated {
 		prefix = "¬"
 	}
-	argsStrs := make([]string, len(l.Args))
+	parts := make([]string, len(l.Args))
 	for i, arg := range l.Args {
-		argsStrs[i] = arg.String()
+		parts[i] = arg.String()
 	}
-	return fmt.Sprintf("%s%s(%s)", prefix, l.Predicate, strings.Join(argsStrs, ", "))
+	return fmt.Sprintf("%s%s(%s)", prefix, l.Predicate, strings.Join(parts, ", "))
 }
 
-// Negate возвращает копию литерала с инвертированным знаком
 func (l *Literal) Negate() *Literal {
 	return NewLiteral(l.Predicate, l.Args, !l.Negated)
 }
 
-// Equal проверяет равенство двух литералов
+// Equal использует строковое представление для глубокого сравнения
 func (l *Literal) Equal(other *Literal) bool {
 	if l.Predicate != other.Predicate || l.Negated != other.Negated {
 		return false
@@ -89,45 +115,33 @@ func (l *Literal) Equal(other *Literal) bool {
 		return false
 	}
 	for i := range l.Args {
-		if l.Args[i].Name() != other.Args[i].Name() {
+		if l.Args[i].String() != other.Args[i].String() {
 			return false
 		}
 	}
 	return true
 }
 
-// ==========================================
-// 2. Клауза (с поддержкой ID)
-// ==========================================
-
-// Clause — клауза (дизъюнкция литералов)
 type Clause struct {
-	ID       int        // уникальный номер в списке всех клауз
-	Literals []*Literal // список Литералов, которые содержит клауза
-	Origin   string     // "init" (изначальна дана программе) или "res" (полученна лог. выводом)
-	Parents  [2]*Clause // Родительские клаузы (для резольвент)
-	Rule     string     // Описание унификации
+	ID       int
+	Literals []*Literal
+	Origin   string
+	Parents  [2]*Clause
+	Rule     string
 }
 
 func NewClause(id int, literals []*Literal, origin string, parents [2]*Clause, rule string) *Clause {
-	// Удаление дубликатов и сортировка
 	uniqueLiterals := removeDuplicateLiterals(literals)
+	// Сортировка для детерминизма
 	sort.Slice(uniqueLiterals, func(i, j int) bool {
 		return uniqueLiterals[i].String() < uniqueLiterals[j].String()
 	})
-
-	return &Clause{
-		ID:       id,
-		Literals: uniqueLiterals,
-		Origin:   origin,
-		Parents:  parents,
-		Rule:     rule,
-	}
+	return &Clause{ID: id, Literals: uniqueLiterals, Origin: origin, Parents: parents, Rule: rule}
 }
 
 func (c *Clause) String() string {
 	if len(c.Literals) == 0 {
-		return "□" // Пустая клауза (Противоречие)
+		return "□"
 	}
 	parts := make([]string, len(c.Literals))
 	for i, lit := range c.Literals {
@@ -136,12 +150,8 @@ func (c *Clause) String() string {
 	return strings.Join(parts, " ∨ ")
 }
 
-// IsEmpty проверяет, является ли клауза пустой (противоречие)
-func (c *Clause) IsEmpty() bool {
-	return len(c.Literals) == 0
-}
+func (c *Clause) IsEmpty() bool { return len(c.Literals) == 0 }
 
-// Equal проверяет равенство двух клауз (по содержанию литералов)
 func (c *Clause) Equal(other *Clause) bool {
 	if len(c.Literals) != len(other.Literals) {
 		return false
@@ -154,7 +164,6 @@ func (c *Clause) Equal(other *Clause) bool {
 	return true
 }
 
-// removeDuplicateLiterals удаляет дубликаты литералов к клаузе
 func removeDuplicateLiterals(literals []*Literal) []*Literal {
 	seen := make(map[string]bool)
 	result := make([]*Literal, 0, len(literals))
@@ -169,13 +178,11 @@ func removeDuplicateLiterals(literals []*Literal) []*Literal {
 }
 
 // ==========================================
-// 3. Унификация
+// 3. Унификация (Ядро логики)
 // ==========================================
 
-// Theta — подстановка (отображение имени переменной на терм: x -> Const)
 type Theta map[string]Term
 
-// copyTheta создаёт копию подстановки
 func copyTheta(original Theta) Theta {
 	if original == nil {
 		return make(Theta)
@@ -187,111 +194,104 @@ func copyTheta(original Theta) Theta {
 	return copied
 }
 
-// unify пытается унифицировать два объекта
-// Возвращает nil, false если унификация невозможна
 func unify(x, y interface{}, theta Theta) (Theta, bool) {
 	if theta == nil {
 		theta = make(Theta)
 	}
 
-	// Сравнение термов (переменных, констант)
 	xTerm, xIsTerm := x.(Term)
 	yTerm, yIsTerm := y.(Term)
 
 	if xIsTerm && yIsTerm {
-		// Оба — термы, если имена равны унификация не требуется
-		if xTerm.Name() == yTerm.Name() {
+		// Оптимизация: если строки равны, термы идентичны
+		if xTerm.String() == yTerm.String() {
 			return theta, true
 		}
-		// если среди термов есть переменная -> унифицируем переменную
+
+		// Если один из них переменная
 		if xTerm.IsVariable() {
 			return unifyVar(xTerm, yTerm, theta)
 		}
 		if yTerm.IsVariable() {
 			return unifyVar(yTerm, xTerm, theta)
 		}
-		// Оба константы, но разные — унификация невозможна
+
+		// Если оба — Функции
+		xFunc, xIsFunc := xTerm.(*Function)
+		yFunc, yIsFunc := yTerm.(*Function)
+		if xIsFunc && yIsFunc {
+			if xFunc.name != yFunc.name || len(xFunc.args) != len(yFunc.args) {
+				return nil, false
+			}
+			return unifyLists(xFunc.args, yFunc.args, theta)
+		}
+
+		// Разные типы (Константа vs Функция) или разные константы
 		return nil, false
 	}
 
-	// Сравнение литералов
+	// Литералы
 	xLit, xIsLit := x.(*Literal)
 	yLit, yIsLit := y.(*Literal)
-
 	if xIsLit && yIsLit {
-		// Если имена предикатов или длина списка арг. не совпали - унификация невозможна
 		if xLit.Predicate != yLit.Predicate || len(xLit.Args) != len(yLit.Args) {
 			return nil, false
 		}
-		// переходим к унификации списка аргументов
 		return unifyLists(xLit.Args, yLit.Args, theta)
-	}
-
-	// Сравнение списков термов
-	xList, xIsList := x.([]Term)
-	yList, yIsList := y.([]Term)
-
-	if xIsList && yIsList {
-		// переводим к унификации списка аргуументов
-		return unifyLists(xList, yList, theta)
 	}
 
 	return nil, false
 }
 
-// unifyLists унифицирует два списка термов
 func unifyLists(xs, ys []Term, theta Theta) (Theta, bool) {
-	// списки пусты - унификация завершена
 	if len(xs) == 0 && len(ys) == 0 {
 		return theta, true
 	}
-	// пуст только один список - унификация невозможна
 	if len(xs) == 0 || len(ys) == 0 {
 		return nil, false
 	}
-
-	// унифицируем первые элементы списка
 	newTheta, ok := unify(xs[0], ys[0], theta)
 	if !ok {
 		return nil, false
 	}
-	// рекурсивный вызов, чтобы унифицировать хвост
 	return unifyLists(xs[1:], ys[1:], newTheta)
 }
 
-// unifyVar унифицирует переменную с термом
 func unifyVar(varTerm Term, x Term, theta Theta) (Theta, bool) {
 	varName := varTerm.Name()
 
-	// Если varTerm переменная уже в подстановке (например varTerm -> Const вызываем unify(theta[varTerm], const))
+	// 1. Проверяем, связана ли уже переменная varTerm
 	if val, exists := theta[varName]; exists {
 		return unify(val, x, theta)
 	}
 
-	// Если x — переменная и она в подстановке (например x -> Const вызываем unify(varTerm, theta[x]))
+	// 2. Проверяем, связана ли x (если x тоже переменная)
 	if x.IsVariable() {
 		if val, exists := theta[x.Name()]; exists {
 			return unify(varTerm, val, theta)
 		}
 	}
 
-	// Создаём новую подстановку (на этом этапе других подстанавок нет)
+	// 3. Occurs Check: Нельзя связать x = f(x)
+	if x.ContainsVar(varName) {
+		return nil, false
+	}
+
+	// 4. Связываем
 	newTheta := copyTheta(theta)
 	newTheta[varName] = x
 	return newTheta, true
 }
 
 // ==========================================
-// 4. Движок Резолюций (Resolution Engine)
+// 4. Парсер (Умный парсер скобок)
 // ==========================================
 
-// ResolutionEngine — движок для поиска доказательств методом резолюций
 type ResolutionEngine struct {
 	clauses       []*Clause
 	clauseCounter int
 }
 
-// NewResolutionEngine создаёт новый движок резолюций
 func NewResolutionEngine() *ResolutionEngine {
 	return &ResolutionEngine{
 		clauses:       make([]*Clause, 0),
@@ -299,74 +299,120 @@ func NewResolutionEngine() *ResolutionEngine {
 	}
 }
 
-// getNextID возвращает следующий уникальный ID для клаузы
 func (e *ResolutionEngine) getNextID() int {
 	id := e.clauseCounter
 	e.clauseCounter++
 	return id
 }
 
-// ParseInput преобразует строки в объекты Clause (использует парсер)
 func (e *ResolutionEngine) ParseInput(inputStrings []string) {
 	e.clauses = make([]*Clause, 0)
 	e.clauseCounter = 1
 
 	for _, s := range inputStrings {
+		// Разделяем по ИЛИ
 		literalsStr := strings.Split(s, "∨")
 		literals := make([]*Literal, 0)
 
 		for _, lStr := range literalsStr {
 			lStr = strings.TrimSpace(lStr)
-			negated := strings.HasPrefix(lStr, "¬")
-			if negated {
-				lStr = strings.TrimPrefix(lStr, "¬")
+			negated := false
+
+			// Корректная обработка знака отрицания
+			if strings.HasPrefix(lStr, "¬") {
+				negated = true
+				runes := []rune(lStr)
+				lStr = string(runes[1:])
 			}
 
-			// Парсим литерал вручную
-			name, args := parseLiteral(lStr)
+			name, args := parseLiteralString(lStr)
 			if name != "" {
 				literals = append(literals, NewLiteral(name, args, negated))
 			}
 		}
 
-		// Создаём начальную клаузу
 		newClause := NewClause(e.getNextID(), literals, "init", [2]*Clause{}, "")
 		e.clauses = append(e.clauses, newClause)
 	}
 }
 
-// parseLiteral парсит литерал вида "Predicate(arg1, arg2, ...)"
-func parseLiteral(s string) (string, []Term) {
-	// Ищем открывающую скобку
+// parseLiteralString выделяет P и (args...)
+func parseLiteralString(s string) (string, []Term) {
+	s = strings.TrimSpace(s)
 	openIdx := strings.Index(s, "(")
 	if openIdx == -1 {
 		return "", nil
 	}
-	// Ищем закрывающую скобку
 	closeIdx := strings.LastIndex(s, ")")
 	if closeIdx == -1 || closeIdx <= openIdx {
 		return "", nil
 	}
 
 	name := s[:openIdx]
-	argsStr := s[openIdx+1 : closeIdx]
-	argsRaw := strings.Split(argsStr, ",")
-	args := make([]Term, 0, len(argsRaw))
-
-	for _, a := range argsRaw {
-		a = strings.TrimSpace(a)
-		// Логика: 1 руна строчная буква = переменная, иначе константа
-		if isSingleLowerLetter(a) {
-			args = append(args, NewVariable(a))
-		} else {
-			args = append(args, NewConstant(a))
-		}
-	}
-
+	argsBody := s[openIdx+1 : closeIdx]
+	args := parseArgs(argsBody)
 	return name, args
 }
 
-// isSingleLowerLetter проверяет, является ли строка одной строчной буквой
+// parseArgs рекурсивно парсит список аргументов, учитывая запятые внутри функций
+func parseArgs(s string) []Term {
+	var args []Term
+	var currentToken strings.Builder
+	depth := 0
+
+	runes := []rune(s)
+	for i, r := range runes {
+		switch r {
+		case '(':
+			depth++
+			currentToken.WriteRune(r)
+		case ')':
+			depth--
+			currentToken.WriteRune(r)
+		case ',':
+			if depth == 0 {
+				termStr := strings.TrimSpace(currentToken.String())
+				if termStr != "" {
+					args = append(args, parseTerm(termStr))
+				}
+				currentToken.Reset()
+			} else {
+				currentToken.WriteRune(r)
+			}
+		default:
+			currentToken.WriteRune(r)
+		}
+
+		if i == len(runes)-1 {
+			termStr := strings.TrimSpace(currentToken.String())
+			if termStr != "" {
+				args = append(args, parseTerm(termStr))
+			}
+		}
+	}
+	return args
+}
+
+// parseTerm определяет тип терма: Переменная, Функция или Константа
+func parseTerm(s string) Term {
+	s = strings.TrimSpace(s)
+	// Это Функция?
+	openIdx := strings.Index(s, "(")
+	if openIdx != -1 && strings.HasSuffix(s, ")") {
+		funcName := s[:openIdx]
+		argsBody := s[openIdx+1 : len(s)-1]
+		args := parseArgs(argsBody) // Рекурсия
+		return NewFunction(funcName, args)
+	}
+
+	// Переменная или Константа?
+	if isSingleLowerLetter(s) {
+		return NewVariable(s)
+	}
+	return NewConstant(s)
+}
+
+// isSingleLowerLetter: переменные - только одна строчная буква (по ТЗ промпта)
 func isSingleLowerLetter(s string) bool {
 	runes := []rune(s)
 	if len(runes) != 1 {
@@ -375,53 +421,77 @@ func isSingleLowerLetter(s string) bool {
 	return unicode.IsLower(runes[0]) && unicode.IsLetter(runes[0])
 }
 
-// substitute применяет подстановку к литералу
+// ==========================================
+// 5. Подстановка и Резолюция
+// ==========================================
+
 func (e *ResolutionEngine) substitute(lit *Literal, theta Theta) *Literal {
 	newArgs := make([]Term, len(lit.Args))
 	for i, arg := range lit.Args {
-		val := arg
-		// подстановка по всем переменных на основе значения в theta
-		for val.IsVariable() {
-			if newVal, exists := theta[val.Name()]; exists {
-				val = newVal
-			} else {
-				break
-			}
-		}
-		newArgs[i] = val
+		newArgs[i] = e.applyThetaToTermSafe(arg, theta, make(map[string]bool))
 	}
 	return NewLiteral(lit.Predicate, newArgs, lit.Negated)
 }
 
-// resolvePair возвращает ВСЕ возможные резольвенты из двух клауз
+// applyThetaToTermSafe применяет подстановку с защитой от бесконечной рекурсии
+func (e *ResolutionEngine) applyThetaToTermSafe(t Term, theta Theta, visited map[string]bool) Term {
+	// 1. Переменная: ищем замену
+	if t.IsVariable() {
+		varName := t.Name()
+		// Защита от циклической подстановки
+		if visited[varName] {
+			return t
+		}
+		if val, exists := theta[varName]; exists {
+			// Отмечаем переменную как посещённую
+			visited[varName] = true
+			result := e.applyThetaToTermSafe(val, theta, visited)
+			delete(visited, varName) // Убираем после обработки для других путей
+			return result
+		}
+		return t
+	}
+	// 2. Функция: заходим внутрь
+	if f, ok := t.(*Function); ok {
+		newFnArgs := make([]Term, len(f.args))
+		for i, arg := range f.args {
+			newFnArgs[i] = e.applyThetaToTermSafe(arg, theta, visited)
+		}
+		return NewFunction(f.name, newFnArgs)
+	}
+	// 3. Константа: без изменений
+	return t
+}
+
+// applyThetaToTerm - обёртка для совместимости
+func (e *ResolutionEngine) applyThetaToTerm(t Term, theta Theta) Term {
+	return e.applyThetaToTermSafe(t, theta, make(map[string]bool))
+}
+
 func (e *ResolutionEngine) resolvePair(c1, c2 *Clause) []*Clause {
 	var resolvents []*Clause
 
 	for i, l1 := range c1.Literals {
 		for j, l2 := range c2.Literals {
-			// Ищем пару L и ¬L
+			// Ищем контрарную пару
 			if l1.Predicate == l2.Predicate && l1.Negated != l2.Negated {
-				// Пытаемся унифицировать (l1 и инверсию l2)
+				// Пытаемся унифицировать
 				theta, ok := unify(l1, l2.Negate(), nil)
 
 				if ok {
-					// Собираем новые литералы
 					newLits := make([]*Literal, 0)
-
-					// Все из c1 кроме l1 (по индексу, чтобы избежать проблем с дубликатами)
+					// Копируем и подставляем остальные литералы
 					for idx, l := range c1.Literals {
 						if idx != i {
 							newLits = append(newLits, e.substitute(l, theta))
 						}
 					}
-					// Все из c2 кроме l2
 					for idx, l := range c2.Literals {
 						if idx != j {
 							newLits = append(newLits, e.substitute(l, theta))
 						}
 					}
 
-					// Формируем строку унификации для лога
 					unifStr := formatTheta(theta)
 					if unifStr == "" {
 						unifStr = "(пустая)"
@@ -442,27 +512,28 @@ func (e *ResolutionEngine) resolvePair(c1, c2 *Clause) []*Clause {
 	return resolvents
 }
 
-// formatTheta форматирует подстановку для вывода
 func formatTheta(theta Theta) string {
 	if len(theta) == 0 {
 		return ""
 	}
 	parts := make([]string, 0, len(theta))
 	for k, v := range theta {
-		parts = append(parts, fmt.Sprintf("(%s|%s)", v.String(), k))
+		parts = append(parts, fmt.Sprintf("%s/%s", v.String(), k))
 	}
-	sort.Strings(parts) // Для детерминированного вывода
+	sort.Strings(parts)
 	return strings.Join(parts, ", ")
 }
 
-// ProofResult — результат доказательства с двумя видами логов
+// ==========================================
+// 6. Вывод и логирование (Без изменений)
+// ==========================================
+
 type ProofResult struct {
 	Success  bool
-	FullLog  string // Полный лог со всеми резолюциями
-	ShortLog string // Краткий лог — только цепочка к противоречию
+	FullLog  string
+	ShortLog string
 }
 
-// buildProofChain восстанавливает цепочку клауз, приведших к противоречию
 func (e *ResolutionEngine) buildProofChain(contradiction *Clause) []*Clause {
 	chain := make([]*Clause, 0)
 	visited := make(map[int]bool)
@@ -473,70 +544,53 @@ func (e *ResolutionEngine) buildProofChain(contradiction *Clause) []*Clause {
 			return
 		}
 		visited[c.ID] = true
-
-		// Сначала собираем родителей (рекурсивно)
 		if c.Origin == "res" {
 			collect(c.Parents[0])
 			collect(c.Parents[1])
 		}
-		// Затем добавляем текущую клаузу
 		chain = append(chain, c)
 	}
-
 	collect(contradiction)
 	return chain
 }
 
-// formatShortLog форматирует краткий лог по цепочке доказательства
 func (e *ResolutionEngine) formatShortLog(chain []*Clause) string {
 	var lines []string
 	lines = append(lines, "=== КРАТКИЙ ЛОГ (цепочка доказательства) ===\n")
-
-	// Сначала выводим начальные клаузы из цепочки
 	lines = append(lines, "Используемые начальные клаузы:")
 	for _, c := range chain {
 		if c.Origin == "init" {
 			lines = append(lines, fmt.Sprintf("  [%d] %s", c.ID, c.String()))
 		}
 	}
-
-	// Затем выводим шаги резолюции
 	lines = append(lines, "\nШаги резолюции:")
 	stepNum := 1
 	for _, c := range chain {
 		if c.Origin == "res" {
-			// Определяем тип шага
 			stepType := "Резолюция"
 			if c.IsEmpty() {
 				stepType = "Противоречие найдено"
 			}
-
 			stepLog := fmt.Sprintf(
 				"\nШаг %d - %s\n    Клауза 1: [%d] %s\n    Клауза 2: [%d] %s\n    Действие: %s\n    Результат: [%d] %s",
-				stepNum,
-				stepType,
+				stepNum, stepType,
 				c.Parents[0].ID, c.Parents[0].String(),
 				c.Parents[1].ID, c.Parents[1].String(),
-				c.Rule,
-				c.ID, c.String(),
+				c.Rule, c.ID, c.String(),
 			)
 			lines = append(lines, stepLog)
 			stepNum++
 		}
 	}
-
-	lines = append(lines, "\nРезультат: резолюция успешна. (обнаружено противоречие □)")
+	lines = append(lines, "\nРезультат: резолюция успешна (□).")
 	return strings.Join(lines, "\n")
 }
 
-// Prove запускает поиск доказательства с генерацией логов
 func (e *ResolutionEngine) Prove() ProofResult {
 	activeClauses := make([]*Clause, len(e.clauses))
 	copy(activeClauses, e.clauses)
-
 	processedPairs := make(map[[2]int]bool)
 
-	// Формирование начальной части полного лога
 	var logLines []string
 	logLines = append(logLines, "=== ПОЛНЫЙ ЛОГ (все резолюции) ===\n")
 	logLines = append(logLines, fmt.Sprintf("Начальные клаузы: %d", len(activeClauses)))
@@ -547,41 +601,33 @@ func (e *ResolutionEngine) Prove() ProofResult {
 	stepCount := 1
 	processedChecks := 0
 
-	// сам алгоритм резолюций
 	for {
 		progress := false
-		// Копируем список, так как он будет расти
 		currentPool := make([]*Clause, len(activeClauses))
 		copy(currentPool, activeClauses)
 
 		for i := 0; i < len(currentPool); i++ {
 			for j := i + 1; j < len(currentPool); j++ {
 				processedChecks++
-
-				// превышено допустимое число итераций
 				if processedChecks > max_iterations {
-					return ProofResult{Success: false, FullLog: strings.Join(logLines, ""), ShortLog: fmt.Sprintf("Не удалось найти решение за отведенное число итераций: %d.", max_iterations)}
+					return ProofResult{Success: false, FullLog: strings.Join(logLines, "\n"), ShortLog: "TIMEOUT"}
 				}
 
 				c1 := currentPool[i]
 				c2 := currentPool[j]
-
-				// Избегаем повторной обработки пары
 				pairID := [2]int{c1.ID, c2.ID}
 				if c1.ID > c2.ID {
 					pairID = [2]int{c2.ID, c1.ID}
 				}
-				// если пара уже встречалась, пропускаем её
+
 				if processedPairs[pairID] {
 					continue
 				}
 				processedPairs[pairID] = true
 
-				// для данной пары получаем ВСЕ резольвенты
 				resolvents := e.resolvePair(c1, c2)
 
 				for _, resolvent := range resolvents {
-					// Проверка на дубликаты
 					isDuplicate := false
 					for _, existing := range activeClauses {
 						if resolvent.Equal(existing) {
@@ -590,12 +636,10 @@ func (e *ResolutionEngine) Prove() ProofResult {
 						}
 					}
 
-					// если полученная резольвента новая, добавляем её в список активных клауз
 					if !isDuplicate {
 						activeClauses = append(activeClauses, resolvent)
 						progress = true
 
-						// Формирование лога шага
 						isContradiction := resolvent.IsEmpty()
 						stepName := fmt.Sprintf("Шаг %d - ", stepCount)
 						if isContradiction {
@@ -606,42 +650,25 @@ func (e *ResolutionEngine) Prove() ProofResult {
 
 						stepLog := fmt.Sprintf(
 							"\n%s\n    Клауза 1: [%d] %s\n    Клауза 2: [%d] %s\n    Действие: %s\n    Результат: [%d] %s",
-							stepName,
-							c1.ID, c1.String(),
-							c2.ID, c2.String(),
-							resolvent.Rule,
-							resolvent.ID, resolvent.String(),
+							stepName, c1.ID, c1.String(), c2.ID, c2.String(), resolvent.Rule, resolvent.ID, resolvent.String(),
 						)
 						logLines = append(logLines, stepLog)
 						stepCount++
 
-						// если нашли противоречие - завершаем программу
 						if isContradiction {
-							logLines = append(logLines, "\nРезультат: Получено противоречие → резолюция успешна.")
-
-							// Строим краткий лог
+							logLines = append(logLines, "\nРезультат: Доказано (□).")
 							chain := e.buildProofChain(resolvent)
 							shortLog := e.formatShortLog(chain)
-
-							return ProofResult{
-								Success:  true,
-								FullLog:  strings.Join(logLines, "\n"),
-								ShortLog: shortLog,
-							}
+							return ProofResult{Success: true, FullLog: strings.Join(logLines, "\n"), ShortLog: shortLog}
 						}
 					}
 				}
 			}
 		}
 
-		// среди множества пар не удалось получить резольвенту -> вывода не существет
 		if !progress {
-			logLines = append(logLines, "\nРезультат: Не удалось получить противоречие (новые клаузы больше не выводятся).")
-			return ProofResult{
-				Success:  false,
-				FullLog:  strings.Join(logLines, "\n"),
-				ShortLog: strings.Join(logLines, "\n"),
-			}
+			logLines = append(logLines, "\nРезультат: Противоречие не найдено (база непротиворечива).")
+			return ProofResult{Success: false, FullLog: strings.Join(logLines, "\n"), ShortLog: strings.Join(logLines, "\n")}
 		}
 	}
 }
